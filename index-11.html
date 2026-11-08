@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>借用排隊板</title>
+<meta name="description" content="服務台用的借用與排隊小工具：推車、輪椅借完時登記排隊，有人歸還就一鍵打電話或傳簡訊通知下一位。">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1f6f68">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --bg:#f3f1ec; --card:#ffffff; --ink:#1d2a2b; --muted:#5f6b6c; --line:#dcd7cc;
+  --main:#1f6f68; --main-soft:#e1efec; --warn:#a2561c; --warn-soft:#f7e8d9; --bad:#a33a35;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141a1a; --card:#1d2525; --ink:#e8eeec; --muted:#9aa8a6; --line:#2f3a3a;
+    --main:#5fb8ad; --main-soft:#1f3633; --warn:#e3a061; --warn-soft:#3a2c1f; --bad:#e2827c; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;font-size:16px;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 80px}
+header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:22px;margin:0;flex:1}
+.ghost{background:none;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:6px 12px;font-size:14px;cursor:pointer}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}
+.stat b{display:block;font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.zero b{color:var(--bad)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+.card h2{font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 small{font-weight:400;color:var(--muted);font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row > *{flex:1 1 140px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+textarea{min-height:70px}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+.btn{font:inherit;font-weight:700;text-decoration:none;text-align:center;display:inline-block;border:0;border-radius:12px;padding:12px 14px;cursor:pointer;background:var(--main);color:#fff}
+.btn.alt{background:var(--warn)}
+.btn.soft{background:var(--main-soft);color:var(--main)}
+.btn.small{padding:7px 10px;font-size:14px;font-weight:600}
+.btn.line{background:none;border:1px solid var(--line);color:var(--ink)}
+.btn.danger{background:none;border:1px solid var(--bad);color:var(--bad)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.list li:first-child{border-top:0}
+.who{flex:1 1 160px;min-width:0}
+.who b{display:block}
+.who span{font-size:13px;color:var(--muted)}
+.num{width:30px;height:30px;border-radius:50%;background:var(--main-soft);color:var(--main);display:grid;place-items:center;font-weight:700;flex:0 0 30px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.empty{color:var(--muted);font-size:14px;padding:6px 0}
+.notify{background:var(--warn-soft);border:1px solid var(--warn);border-radius:16px;padding:14px;margin:12px 0}
+.notify h2{margin:0 0 6px;font-size:17px;color:var(--warn)}
+.notify .acts{margin-top:10px}
+.notify .acts .btn{flex:1 1 120px}
+.badge{font-size:12px;border-radius:999px;padding:2px 8px;background:var(--warn-soft);color:var(--warn);font-weight:700}
+.badge.late{background:var(--bad);color:#fff}
+.tabs{display:flex;gap:6px;margin:16px 0 0;overflow-x:auto}
+.tabs button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.bars{display:flex;align-items:flex-end;gap:4px;height:110px;margin-top:8px}
+.bars div{flex:1;background:var(--main);border-radius:4px 4px 0 0;min-height:2px;position:relative}
+.bars div i{position:absolute;bottom:100%;left:0;right:0;text-align:center;font-style:normal;font-size:11px;color:var(--muted)}
+.bars-x{display:flex;gap:4px;font-size:11px;color:var(--muted)}
+.bars-x span{flex:1;text-align:center}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td{padding:6px 0;border-top:1px solid var(--line)}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.foot{font-size:12px;color:var(--muted);margin-top:24px}
+[hidden]{display:none!important}
+@media (max-width:420px){ .stat b{font-size:24px} .stats{gap:6px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">借用排隊板</h1>
+    <button class="ghost" id="install">加到手機桌面</button>
+  </header>
+  <p class="hint" id="install-hint" hidden></p>
+
+  <div class="stats">
+    <div class="stat"><b id="s-total">0</b><span>總數</span></div>
+    <div class="stat"><b id="s-out">0</b><span>借出中</span></div>
+    <div class="stat" id="s-free-box"><b id="s-free">0</b><span>可借</span></div>
+    <div class="stat"><b id="s-queue">0</b><span>排隊中</span></div>
+  </div>
+
+  <div class="notify" id="notify" hidden>
+    <h2>有空位了，請通知下一位</h2>
+    <div id="notify-who"></div>
+    <div class="acts">
+      <a class="btn" id="n-call" href="#">打電話</a>
+      <a class="btn alt" id="n-sms" href="#">傳簡訊</a>
+    </div>
+    <div class="acts">
+      <button class="btn soft" id="n-done">已通知，開始保留</button>
+      <button class="btn line" id="n-later">稍後再說</button>
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="desk" aria-selected="true">服務台</button>
+    <button role="tab" data-tab="report" aria-selected="false">今日紀錄</button>
+    <button role="tab" data-tab="settings" aria-selected="false">設定</button>
+  </nav>
+
+  <section id="tab-desk">
+    <div class="card">
+      <h2 id="form-title">登記借出</h2>
+      <div class="row">
+        <div><label for="f-name">姓名或代號</label><input id="f-name" autocomplete="off" placeholder="例如：王小姐"></div>
+        <div><label for="f-phone">手機</label><input id="f-phone" inputmode="tel" autocomplete="off" placeholder="0912345678"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label for="f-note">抵押或備註（選填）</label><input id="f-note" autocomplete="off" placeholder="例如：證件、押金 500"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="f-go">借出</button>
+      </div>
+      <p class="hint" id="f-msg"></p>
+    </div>
+
+    <div class="card">
+      <h2>排隊名單 <small id="q-sub"></small></h2>
+      <ul class="list" id="q-list"></ul>
+    </div>
+
+    <div class="card">
+      <h2>借出中 <small>按「歸還」就會提醒你通知下一位</small></h2>
+      <ul class="list" id="l-list"></ul>
+    </div>
+  </section>
+
+  <section id="tab-report" hidden>
+    <div class="card">
+      <h2>今日數字 <small id="r-date"></small></h2>
+      <table id="r-table"></table>
+    </div>
+    <div class="card">
+      <h2>每小時借出次數</h2>
+      <div class="bars" id="r-bars"></div>
+      <div class="bars-x" id="r-bars-x"></div>
+    </div>
+    <div class="card">
+      <h2>匯出與清除</h2>
+      <p class="hint" style="margin-top:0">CSV 檔可以用 Excel 或 Google 試算表打開。匯出的檔案含姓名和電話，請妥善保管。</p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn soft" id="r-csv">匯出 CSV（含個資）</button>
+        <button class="btn soft" id="r-csv-anon">匯出 CSV（去除個資）</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn danger" id="r-clear">結束今天：清除排隊與紀錄</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-settings" hidden>
+    <div class="card">
+      <h2>基本設定</h2>
+      <div class="row">
+        <div><label for="c-item">借用物品名稱</label><input id="c-item" placeholder="推車"></div>
+        <div><label for="c-total">總數</label><input id="c-total" type="number" min="0" inputmode="numeric"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><label for="c-place">領取地點</label><input id="c-place" placeholder="大會服務台"></div>
+        <div><label for="c-hold">通知後保留幾分鐘</label><input id="c-hold" type="number" min="1" inputmode="numeric"></div>
+      </div>
+      <div style="margin-top:8px">
+        <label for="c-sms">簡訊內容（{名字}、{物品}、{地點}、{分鐘} 會自動換掉）</label>
+        <textarea id="c-sms"></textarea>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="c-save">儲存設定</button></div>
+      <p class="hint" id="c-msg"></p>
+    </div>
+    <div class="card">
+      <h2>資料與隱私</h2>
+      <p class="hint" style="margin-top:0">所有資料只存在這台手機或平板的瀏覽器裡，不會上傳到任何伺服器。換一台裝置就看不到；清除瀏覽器資料也會一起刪掉。名單裡的電話只顯示後三碼。建議每天結束時，到「今日紀錄」匯出後清除。</p>
+    </div>
+  </section>
+
+  <p class="foot">借用排隊板 · 單機版，資料只存在本機 · 適合一個服務台用一台裝置</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const KEY = "borrow-queue:v1";
+const DEF = {
+  cfg:{ item:"推車", total:15, place:"大會服務台", hold:10,
+        sms:"{名字}您好，您登記的{物品}已經有空位了，請在{分鐘}分鐘內到{地點}領取，逾時將通知下一位。謝謝！" },
+  loans:[], queue:[], log:[], seq:1, day:""
+};
+let S;
+function load(){
+  try{ S = JSON.parse(localStorage.getItem(KEY)) || null; }catch(e){ S = null; }
+  if(!S) S = JSON.parse(JSON.stringify(DEF));
+  S.cfg = Object.assign({}, DEF.cfg, S.cfg || {});
+  ["loans","queue","log"].forEach(k => { if(!Array.isArray(S[k])) S[k] = []; });
+  if(!S.seq) S.seq = 1;
+  if(!S.day) S.day = today();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function today(){ const d = new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function hm(t){ const d = new Date(t); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+function mins(ms){ return Math.max(0, Math.round(ms/60000)); }
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function digits(p){ return String(p||"").replace(/[^\d+]/g,""); }
+function mask(p){ const d = digits(p); return d ? "…" + d.slice(-3) : "未留電話"; }
+function free(){ return Math.max(0, (Number(S.cfg.total)||0) - S.loans.length); }
+function addLog(type, who, extra){
+  S.log.push(Object.assign({ t:Date.now(), type, id:who.id, name:who.name, phone:who.phone, note:who.note||"" }, extra||{}));
+}
+function isIOS(){ return /iPhone|iPad|iPod/.test(navigator.userAgent); }
+function smsText(p){
+  return S.cfg.sms.replace(/\{名字\}/g, p.name || "")
+    .replace(/\{物品\}/g, S.cfg.item).replace(/\{地點\}/g, S.cfg.place).replace(/\{分鐘\}/g, S.cfg.hold);
+}
+function smsHref(p){ return "sms:" + digits(p.phone) + (isIOS() ? "&" : "?") + "body=" + encodeURIComponent(smsText(p)); }
+function telHref(p){ return "tel:" + digits(p.phone); }
+
+/* ---------- 動作 ---------- */
+function submit(){
+  const name = $("f-name").value.trim(), phone = $("f-phone").value.trim(), note = $("f-note").value.trim();
+  const msg = $("f-msg");
+  if(!name){ msg.textContent = "請填姓名或代號。"; return; }
+  const p = { id:S.seq++, name, phone, note, t:Date.now() };
+  if(free() > 0 && S.queue.length === 0){
+    S.loans.push(p); addLog("borrow", p);
+    msg.textContent = "已借出給 " + name + "。";
+  }else{
+    if(!digits(phone)){ msg.textContent = "排隊需要留手機，才能通知。"; S.seq--; return; }
+    p.status = "wait"; S.queue.push(p); addLog("queue", p);
+    msg.textContent = name + " 已排入第 " + S.queue.length + " 位。";
+  }
+  $("f-name").value = ""; $("f-phone").value = ""; $("f-note").value = "";
+  save(); render(); $("f-name").focus();
+}
+function giveBack(id){
+  const i = S.loans.findIndex(x => x.id === id); if(i < 0) return;
+  const p = S.loans.splice(i,1)[0]; addLog("return", p, { held: Date.now() - p.t });
+  save(); render();
+}
+function nextWaiting(){ return S.queue.find(q => q.status === "wait"); }
+function markNotified(id){
+  const q = S.queue.find(x => x.id === id); if(!q) return;
+  q.status = "notified"; q.nt = Date.now(); addLog("notify", q);
+  S.dismiss = null; save(); render();
+}
+function pickUp(id){
+  const i = S.queue.findIndex(x => x.id === id); if(i < 0) return;
+  if(free() <= 0){ alertMsg("目前沒有可借的" + S.cfg.item + "，請先登記歸還。"); return; }
+  const q = S.queue.splice(i,1)[0];
+  addLog("pickup", q, { waited: Date.now() - q.t });
+  S.loans.push({ id:q.id, name:q.name, phone:q.phone, note:q.note, t:Date.now() });
+  addLog("borrow", q);
+  save(); render();
+}
+function noShow(id){
+  const i = S.queue.findIndex(x => x.id === id); if(i < 0) return;
+  const q = S.queue.splice(i,1)[0]; addLog("noshow", q, { waited: Date.now() - q.t });
+  save(); render();
+}
+function cancelQ(id){
+  const i = S.queue.findIndex(x => x.id === id); if(i < 0) return;
+  const q = S.queue.splice(i,1)[0]; addLog("cancel", q, { waited: Date.now() - q.t });
+  save(); render();
+}
+function moveUp(id){
+  const i = S.queue.findIndex(x => x.id === id); if(i <= 0) return;
+  [S.queue[i-1], S.queue[i]] = [S.queue[i], S.queue[i-1]]; save(); render();
+}
+function alertMsg(t){ $("f-msg").textContent = t; }
+
+/* ---------- 畫面 ---------- */
+function render(){
+  const c = S.cfg;
+  $("title").textContent = c.item + "借用排隊板";
+  document.title = c.item + "借用排隊板";
+  $("form-title").textContent = (free() > 0 && S.queue.length === 0) ? "登記借出" : "已經借完：登記排隊";
+  $("f-go").textContent = (free() > 0 && S.queue.length === 0) ? "借出" : "加入排隊";
+  $("f-go").className = (free() > 0 && S.queue.length === 0) ? "btn" : "btn alt";
+  $("s-total").textContent = c.total;
+  $("s-out").textContent = S.loans.length;
+  $("s-free").textContent = free();
+  $("s-free-box").classList.toggle("zero", free() === 0);
+  $("s-queue").textContent = S.queue.length;
+
+  const now = Date.now();
+  // 排隊
+  const ql = $("q-list");
+  $("q-sub").textContent = S.queue.length ? "依登記順序" : "";
+  ql.innerHTML = S.queue.length ? S.queue.map((q, i) => {
+    let badge = "";
+    if(q.status === "notified"){
+      const left = c.hold*60000 - (now - q.nt);
+      badge = left > 0 ? '<span class="badge">已通知，保留剩 '+Math.ceil(left/60000)+' 分</span>'
+                       : '<span class="badge late">保留時間已過</span>';
+    }
+    return '<li><div class="num">'+(i+1)+'</div><div class="who"><b>'+esc(q.name)+' '+badge+'</b><span>'+mask(q.phone)+' · '+hm(q.t)+' 登記，已等 '+mins(now-q.t)+' 分'+(q.note?' · '+esc(q.note):'')+'</span></div>'+
+      '<div class="acts">'+
+        (digits(q.phone) ? '<a class="btn small line" href="'+telHref(q)+'">打電話</a><a class="btn small line" href="'+smsHref(q)+'">簡訊</a>' : '')+
+        (q.status === "wait" ? '<button class="btn small soft" data-a="notify" data-id="'+q.id+'">已通知</button>' : '')+
+        '<button class="btn small" data-a="pick" data-id="'+q.id+'">已領取</button>'+
+        (q.status === "notified" ? '<button class="btn small danger" data-a="noshow" data-id="'+q.id+'">沒來</button>' : '')+
+        (i > 0 ? '<button class="btn small line" data-a="up" data-id="'+q.id+'" title="往前移">↑</button>' : '')+
+        '<button class="btn small line" data-a="cancel" data-id="'+q.id+'">取消</button>'+
+      '</div></li>';
+  }).join("") : '<li class="empty">目前沒有人排隊。</li>';
+
+  // 借出中
+  const ll = $("l-list");
+  ll.innerHTML = S.loans.length ? S.loans.slice().reverse().map(p =>
+    '<li><div class="who"><b>'+esc(p.name)+'</b><span>'+mask(p.phone)+' · '+hm(p.t)+' 借出，已 '+mins(now-p.t)+' 分'+(p.note?' · '+esc(p.note):'')+'</span></div>'+
+    '<div class="acts"><button class="btn small" data-a="return" data-id="'+p.id+'">歸還</button></div></li>'
+  ).join("") : '<li class="empty">目前沒有借出。</li>';
+
+  // 通知提示：有空位，且有人在等、還沒通知
+  const nx = nextWaiting();
+  const show = nx && free() > countNotified() && S.dismiss !== nx.id;
+  $("notify").hidden = !show;
+  if(show){
+    $("notify-who").innerHTML = '<b>'+esc(nx.name)+'</b>（第 '+(S.queue.indexOf(nx)+1)+' 位，'+mask(nx.phone)+'，已等 '+mins(now-nx.t)+' 分）';
+    $("n-call").href = telHref(nx);
+    $("n-sms").href = smsHref(nx);
+    $("n-done").onclick = () => markNotified(nx.id);
+    $("n-later").onclick = () => { S.dismiss = nx.id; render(); };
+  }
+  renderReport();
+}
+function countNotified(){ return S.queue.filter(q => q.status === "notified").length; }
+
+function renderReport(){
+  $("r-date").textContent = S.day;
+  const L = S.log;
+  const n = t => L.filter(e => e.type === t).length;
+  const waits = L.filter(e => e.type === "pickup").map(e => e.waited || 0);
+  const holds = L.filter(e => e.type === "return").map(e => e.held || 0);
+  const avg = a => a.length ? mins(a.reduce((x,y)=>x+y,0)/a.length) + " 分" : "—";
+  const max = a => a.length ? mins(Math.max.apply(null,a)) + " 分" : "—";
+  const rows = [
+    ["借出次數", n("borrow")],
+    ["歸還次數", n("return")],
+    ["登記排隊人數", n("queue")],
+    ["排隊後領到", n("pickup")],
+    ["通知後沒來", n("noshow")],
+    ["自行取消", n("cancel")],
+    ["排隊平均等待", avg(waits)],
+    ["排隊最長等待", max(waits)],
+    ["平均借用時間", avg(holds)],
+    ["通知次數（打電話或簡訊）", n("notify")]
+  ];
+  $("r-table").innerHTML = rows.map(r => "<tr><td>"+r[0]+"</td><td>"+r[1]+"</td></tr>").join("");
+  // 每小時借出
+  const hours = {}; L.filter(e => e.type === "borrow").forEach(e => { const h = new Date(e.t).getHours(); hours[h] = (hours[h]||0)+1; });
+  let lo = 9, hi = 18;
+  Object.keys(hours).forEach(h => { h = +h; if(h < lo) lo = h; if(h > hi) hi = h; });
+  const vals = []; for(let h = lo; h <= hi; h++) vals.push([h, hours[h]||0]);
+  const top = Math.max(1, ...vals.map(v => v[1]));
+  $("r-bars").innerHTML = vals.map(v => '<div style="height:'+(v[1]/top*100)+'%">'+(v[1]?'<i>'+v[1]+'</i>':'')+'</div>').join("");
+  $("r-bars-x").innerHTML = vals.map(v => "<span>"+v[0]+"</span>").join("");
+}
+
+/* ---------- CSV ---------- */
+const TYPE = { borrow:"借出", "return":"歸還", queue:"排隊", notify:"已通知", pickup:"排隊領取", noshow:"沒來", cancel:"取消" };
+function csv(anon){
+  const head = anon ? ["日期","時間","事件","編號","等待分鐘","借用分鐘"] : ["日期","時間","事件","編號","姓名","電話","備註","等待分鐘","借用分鐘"];
+  const lines = [head];
+  S.log.forEach(e => {
+    const d = new Date(e.t);
+    const base = [S.day, pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()), TYPE[e.type]||e.type, e.id];
+    const tail = [e.waited != null ? mins(e.waited) : "", e.held != null ? mins(e.held) : ""];
+    lines.push(anon ? base.concat(tail) : base.concat([e.name, e.phone, e.note]).concat(tail));
+  });
+  const text = "﻿" + lines.map(r => r.map(v => { v = String(v==null?"":v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type:"text/csv;charset=utf-8"}));
+  a.download = S.cfg.item + "借用紀錄_" + S.day + (anon ? "_去個資" : "") + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- 事件 ---------- */
+$("f-go").onclick = submit;
+["f-name","f-phone","f-note"].forEach(id => $(id).addEventListener("keydown", e => { if(e.key === "Enter") submit(); }));
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-a]"); if(!b) return;
+  const id = +b.dataset.id;
+  ({ "return":giveBack, notify:markNotified, pick:pickUp, noshow:noShow, cancel:cancelQ, up:moveUp })[b.dataset.a](id);
+});
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  ["desk","report","settings"].forEach(t => $("tab-"+t).hidden = t !== b.dataset.tab);
+});
+$("r-csv").onclick = () => csv(false);
+$("r-csv-anon").onclick = () => csv(true);
+$("r-clear").onclick = () => {
+  if(!confirm("確定要結束今天嗎？排隊名單和今日紀錄會清除（建議先匯出）。借出中的名單會保留。")) return;
+  S.queue = []; S.log = []; S.day = today(); S.dismiss = null; save(); render();
+};
+function fillCfg(){ const c = S.cfg; $("c-item").value = c.item; $("c-total").value = c.total; $("c-place").value = c.place; $("c-hold").value = c.hold; $("c-sms").value = c.sms; }
+$("c-save").onclick = () => {
+  const c = S.cfg;
+  c.item = $("c-item").value.trim() || "推車";
+  c.total = Math.max(0, parseInt($("c-total").value,10) || 0);
+  c.place = $("c-place").value.trim() || "服務台";
+  c.hold = Math.max(1, parseInt($("c-hold").value,10) || 10);
+  c.sms = $("c-sms").value.trim() || DEF.cfg.sms;
+  save(); render(); $("c-msg").textContent = "已儲存。";
+  setTimeout(() => $("c-msg").textContent = "", 2000);
+};
+
+/* ---------- 加到手機桌面 ---------- */
+let installEvt = null;
+const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+window.addEventListener("appinstalled", () => { $("install").hidden = true; const h = $("install-hint"); h.hidden = false; h.textContent = "已加到桌面，之後從桌面圖示打開即可。"; });
+if (standalone()) $("install").hidden = true;
+$("install").onclick = async () => {
+  const hint = $("install-hint"); hint.hidden = false;
+  if (installEvt){
+    installEvt.prompt();
+    const r = await installEvt.userChoice.catch(() => null);
+    installEvt = null;
+    hint.textContent = r && r.outcome === "accepted" ? "已加到桌面。" : "沒有加入，之後可以再按一次。";
+    return;
+  }
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) hint.textContent = "iPhone：請用 Safari 打開這個網址，按下方的「分享」圖示（方框加向上箭頭），往下找「加入主畫面」。";
+  else if (/Line\/|FBAN|FBAV|Instagram/.test(ua)) hint.textContent = "你現在是在 LINE 或臉書裡打開的。請先點右上角選單，選「用瀏覽器開啟」，再按一次這個按鈕。";
+  else hint.textContent = "請點瀏覽器右上角的 ⋮ 選單，選「加到主畫面」或「安裝應用程式」。";
+};
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+load(); fillCfg(); render();
+setInterval(render, 30000);
+})();
+</script>
+</body>
+</html>
